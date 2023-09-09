@@ -1,0 +1,40 @@
+apiVersion: v1alpha1
+kind: Autoheater
+metadata:
+ name: pepito
+spec:
+
+  # Min 10m
+  synchronization:
+    time: "10m"
+
+  # Take into account the weather as first filter. The idea is not to switch the heater on really hot days
+  weather:
+    enabled: true
+
+    coordinates:
+      latitude: 28.0930127
+      longitude: -16.6357443
+
+    #
+    temperature:
+      # Type of temperature to take into account. Possible values: apparent or real
+      # Attention: apparent is recommended as it is the perceived feels-like temperature combining
+      # wind chill factor, relative humidity and solar radiation
+      type: apparent
+
+      # Possible values are: fahrenheit or celsius
+      unit: celsius
+
+      # Max temperature to switch the heater on. Switching on the heater will be ignored on higher temperatures
+      threshold: 35
+
+  # Prices for today's day are coming from Apaga Luz, as these data are already filtered and ease-to-access
+  # Ref: https://raw.githubusercontent.com/jorgeatgu/apaga-luz/main/public/data/today_price.json
+  # [{"day":"09/09/2023", "hour":0, "price":0.164, "zone":"valle"}]
+  price:
+    # Encender menos de X horas
+    activeHours: 3
+
+    # Si la luz más barata está demasiado cara, ignora el encendido
+    #maxToPay: 0.30
