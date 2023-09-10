@@ -31,10 +31,15 @@ spec:
 
   # Prices for today's day are coming from Apaga Luz, as these data are already filtered and ease-to-access
   # Ref: https://raw.githubusercontent.com/jorgeatgu/apaga-luz/main/public/data/today_price.json
+  # Ref: https://raw.githubusercontent.com/jorgeatgu/apaga-luz/main/public/data/canary_price.json
   # [{"day":"09/09/2023", "hour":0, "price":0.164, "zone":"valle"}]
   price:
+    # Spanish pricing zone due to geographical differences. Possible values: mainland or canaryislands
+    zone: canaryislands
+
     # Encender menos de X horas
-    activeHours: 39
+    # TODO: MOVE TO CONFIG
+    activeHours: 2
 
     # Si la luz más barata está demasiado cara, ignora el encendido
     #maxToPay: 0.30

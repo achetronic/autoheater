@@ -47,5 +47,6 @@ type TemperatureSpec struct {
 
 // PriceSpec TODO
 type PriceSpec struct {
-	ActiveHours int `yaml:"activeHours"`
+	Zone        string `yaml:"zone"`
+	ActiveHours int    `yaml:"activeHours"`
 }

@@ -52,11 +52,12 @@ func RunCommand(cmd *cobra.Command, args []string) {
 	//os.Exit(0)
 
 	if configContent.Spec.Weather.Enabled {
-		zorro, _ := weather.IsHeatingDay(&configContent)
+		zorro, _ := weather.IsColdDay(&configContent)
 		log.Print(zorro)
 	}
 
-	pepe, _ := price.GetApiData(&configContent)
+	pepe, _ := price.GetBestSchedules(&configContent)
+	log.Print(pepe)
 	_ = pepe
 
 	// pass params related to Open Meteo to weather module to get information

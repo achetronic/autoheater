@@ -126,13 +126,22 @@ func GetApiData(autoheater *v1alpha1.Autoheater) (response *OpenMeteoResponseSpe
 	return response, nil
 }
 
-// TODO IsHeatingDay
-func IsHeatingDay(autoheater *v1alpha1.Autoheater) (bool, error) {
+// IsColdDay return true when temperature's mean for the whole day is under the threshold defined on config
+func IsColdDay(autoheater *v1alpha1.Autoheater) (bool, error) {
 
 	response, err := GetApiData(autoheater)
 	if err != nil {
 		return false, err
 	}
+
+	//modeResult, countResult := stat.Mode(response.Hourly.ApparentTemperature, nil)
+	//if autoheater.Spec.Weather.Temperature.Type == "real" {
+	//	modeResult, countResult = stat.Mode(response.Hourly.Temperature2m, nil)
+	//}
+	//
+	//if modeResult >= float64(autoheater.Spec.Weather.Temperature.Threshold) {
+	//	return false, nil
+	//}
 
 	meanResult := stat.Mean(response.Hourly.ApparentTemperature, nil)
 	if autoheater.Spec.Weather.Temperature.Type == "real" {
