@@ -15,6 +15,9 @@ const (
 	ApagaLuzAPIUrl       = "https://raw.githubusercontent.com/jorgeatgu/apaga-luz/main/public/data/today_price.json"
 	ApagaLuzCanaryAPIUrl = "https://raw.githubusercontent.com/jorgeatgu/apaga-luz/main/public/data/canary_price.json"
 
+	// Location of retrieved data from ApagaLuz
+	ApagaLuzApiTimeLocation = "Europe/Madrid"
+
 	//
 	dateLayout = "02/01/2006 15"
 )
@@ -137,7 +140,7 @@ func GetLimitedCorrelativeHourRanges(autoheater *v1alpha1.Autoheater) (correlati
 	}
 
 	// Select as many hours as required by config
-	requiredHoursLeft := autoheater.Spec.Price.ActiveHours
+	requiredHoursLeft := autoheater.Spec.Device.ActiveHours
 
 	for _, rangeItem := range correlativeRangesByPrice {
 
@@ -162,12 +165,16 @@ func GetLimitedCorrelativeHourRanges(autoheater *v1alpha1.Autoheater) (correlati
 // GetBestSchedules return a list of schedules that meet 'active hours' config parameter
 // Starts are delayed by 5 minutes, and stops are 5 minutes early. Done in purpose to avoid time collisions on
 // parallel scheduling. This can be improved a lot. Are you willing to contribute?
+// DISCLAIMER: ESIOS' API (ApagaLuz's datasource) uses CEST as timezone. This is needed to be taken into account later.
 func GetBestSchedules(autoheater *v1alpha1.Autoheater) (schedules []Schedule, err error) {
 
 	limitedCorrelativeRanges, err := GetLimitedCorrelativeHourRanges(autoheater)
 	if err != nil {
 		return schedules, err
 	}
+
+	// Data from API is coming located in CEST. It's needed to parse it in that way
+	apiTimeLocation, err := time.LoadLocation(ApagaLuzApiTimeLocation)
 
 	for _, rangeItem := range limitedCorrelativeRanges {
 
@@ -177,7 +184,7 @@ func GetBestSchedules(autoheater *v1alpha1.Autoheater) (schedules []Schedule, er
 		})
 
 		// Get timestamp for the first item (always present)
-		startTime, err := time.Parse(dateLayout, fmt.Sprintf("%s %d", rangeItem[0].Day, rangeItem[0].Hour))
+		startTime, err := time.ParseInLocation(dateLayout, fmt.Sprintf("%s %d", rangeItem[0].Day, rangeItem[0].Hour), apiTimeLocation)
 		if err != nil {
 			return schedules, err
 		}
@@ -193,7 +200,7 @@ func GetBestSchedules(autoheater *v1alpha1.Autoheater) (schedules []Schedule, er
 		}
 
 		// More items: stop it on last item's timestamp
-		stopTime, err = time.Parse(dateLayout, fmt.Sprintf("%s %d", rangeItem[len(rangeItem)-1].Day, rangeItem[len(rangeItem)-1].Hour))
+		stopTime, err = time.ParseInLocation(dateLayout, fmt.Sprintf("%s %d", rangeItem[len(rangeItem)-1].Day, rangeItem[len(rangeItem)-1].Hour), apiTimeLocation)
 		if err != nil {
 			return schedules, err
 		}

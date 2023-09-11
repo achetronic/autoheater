@@ -3,6 +3,7 @@ module github.com/achetronic/autoheater
 go 1.21
 
 require (
+	github.com/procyon-projects/chrono v1.1.2
 	github.com/spf13/cobra v1.7.0
 	gonum.org/v1/gonum v0.14.0
 	gopkg.in/yaml.v3 v3.0.1

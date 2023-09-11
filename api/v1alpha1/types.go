@@ -16,6 +16,7 @@ type AutoheaterMetadataT struct {
 // AutoheaterSpec TODO
 type AutoheaterSpec struct {
 	Synchronization SynchronizationSpec `yaml:"synchronization"`
+	Device          DeviceSpec          `yaml:"device"`
 	Weather         WeatherSpec         `yaml:"weather"`
 	Price           PriceSpec           `yaml:"price"`
 }
@@ -23,6 +24,29 @@ type AutoheaterSpec struct {
 // SynchronizationSpec TODO
 type SynchronizationSpec struct {
 	Time string `yaml:"time"`
+}
+
+// --
+type DeviceSpec struct {
+	ActiveHours    int                `yaml:"activeHours"`
+	Implementation ImplementationSpec `yaml:"implementation"`
+}
+
+type ImplementationSpec struct {
+
+	// TODO
+	TapoSmartPlug struct {
+		Address string `yaml:"address"`
+		Auth    struct {
+			Username string `yaml:"username"`
+			Password string `yaml:"password"`
+		} `yaml:"auth"`
+	} `yaml:"tapoSmartPlug,omitempty"`
+
+	// TODO
+	Webhook struct {
+		URL string `yaml:"url"`
+	} `yaml:"webhook,omitempty"`
 }
 
 // WeatherSpec TODO
@@ -47,6 +71,5 @@ type TemperatureSpec struct {
 
 // PriceSpec TODO
 type PriceSpec struct {
-	Zone        string `yaml:"zone"`
-	ActiveHours int    `yaml:"activeHours"`
+	Zone string `yaml:"zone"`
 }

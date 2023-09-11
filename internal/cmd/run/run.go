@@ -3,9 +3,12 @@ package run
 import (
 	"github.com/achetronic/autoheater/internal/config"
 	"github.com/achetronic/autoheater/internal/price"
+	"github.com/achetronic/autoheater/internal/schedules"
 	"github.com/achetronic/autoheater/internal/weather"
 	"github.com/spf13/cobra"
 	"log"
+	"net/http"
+	_ "net/http/pprof"
 )
 
 const (
@@ -47,8 +50,7 @@ func RunCommand(cmd *cobra.Command, args []string) {
 		log.Fatalf("No se pudo parsear: %v", err)
 	}
 
-	log.Print(configContent)
-
+	//log.Print(configContent)
 	//os.Exit(0)
 
 	if configContent.Spec.Weather.Enabled {
@@ -56,14 +58,26 @@ func RunCommand(cmd *cobra.Command, args []string) {
 		log.Print(zorro)
 	}
 
+	juan, _ := price.GetCorrelativeHourRangesByPrice(&configContent)
+	log.Print(juan)
+
 	pepe, _ := price.GetBestSchedules(&configContent)
 	log.Print(pepe)
 	_ = pepe
 
-	// pass params related to Open Meteo to weather module to get information
+	//
+	schedules.RunScheduler(&configContent, pepe)
 
-	// Pass the params
-
+	//
 	_ = err
+
+	// Init web server for pprof debugging
+	err = http.ListenAndServe("localhost:8080", nil)
+	if err != nil {
+		log.Print("pepito perigoloso")
+		return
+	}
+
+	select {}
 
 }
