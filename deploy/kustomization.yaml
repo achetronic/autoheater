@@ -1,0 +1,16 @@
+apiVersion: kustomize.config.k8s.io/v1beta1
+kind: Kustomization
+
+namespace: autoheater
+
+commonLabels:
+  app.kubernetes.io/name: autoheater
+
+replicas:
+  - name: autoheater
+    count: 3
+
+resources:
+  - namespace.yaml
+  - configmap.yaml
+  - deployment.yaml

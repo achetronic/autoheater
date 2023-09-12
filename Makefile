@@ -9,8 +9,7 @@ SHELL = /usr/bin/env bash -o pipefail
 ########################################################################################################################
 
 # Image URL to use all building/pushing image targets
-VERSION ?= latest
-IMG ?= achetronic/autoheater:v${VERSION}
+IMG ?= ghcr.io/achetronic/autoheater:v0.1.0
 PLATFORM ?= linux/amd64
 
 # Get the currently used golang install path (in GOPATH/bin, unless GOBIN is set)

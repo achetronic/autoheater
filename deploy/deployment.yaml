@@ -1,0 +1,36 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: autoheater
+spec:
+  replicas: 1
+  selector:
+    matchLabels: {}
+  strategy:
+    type: Recreate
+  template:
+    spec:
+      hostname: autoheater-hostname
+      restartPolicy: Always
+      containers:
+        - name: autoheater
+          image: ghcr.io/achetronic/autoheater:latest
+          resources: {}
+          args:
+            - run
+            - --config
+            - /tmp/autoheater.yml
+
+          env:
+            - name: TZ
+              value: Europe/Berlin
+
+          volumeMounts:
+            - mountPath: /tmp/autoheater.yml
+              subPath: autoheater.yml
+              name: autoheater-data
+
+      volumes:
+        - name: autoheater-data
+          configMap:
+            name: autoheater-config
