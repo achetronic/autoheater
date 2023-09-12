@@ -22,7 +22,8 @@ const (
 	ApagaLuzCanaryAPIUrl = "https://raw.githubusercontent.com/jorgeatgu/apaga-luz/main/public/data/canary_price.json"
 
 	// Location of retrieved data from ApagaLuz
-	ApagaLuzApiTimeLocation = "Europe/Madrid"
+	ApagaLuzApiTimeLocation       = "Europe/Madrid"
+	ApagaLuzCanaryApiTimeLocation = "Atlantic/Canary"
 
 	//
 	dateLayout = "02/01/2006 15"
@@ -110,8 +111,14 @@ func GetLimitedCorrelativeHourRanges(ctx *v1alpha1.Context) (correlativeRanges [
 		return correlativeRanges, errors.New(ActiveHoursOutOfRangeErrorMessage)
 	}
 
+	// Limit 'device.activeHours' to the available amount of remaining hours
+	parsedActiveHours := ctx.Config.Spec.Device.ActiveHours
+	if ctx.Config.Spec.Device.ActiveHours > len(*response) {
+		parsedActiveHours = len(*response)
+	}
+
 	// 2. Keep the N cheapest items, discard the others
-	*response = (*response)[0:ctx.Config.Spec.Device.ActiveHours]
+	*response = (*response)[0:parsedActiveHours]
 
 	// 3. Re-sort them by hour
 	sort.Slice(*response, func(i, j int) bool {
@@ -158,8 +165,11 @@ func GetBestSchedules(ctx *v1alpha1.Context) (schedules []Schedule, err error) {
 		return schedules, err
 	}
 
-	// Data from API is coming located in CEST. It's needed to parse it in that way
+	// Data from API is coming located. It's needed to parse it in that way
 	apiTimeLocation, err := time.LoadLocation(ApagaLuzApiTimeLocation)
+	if ctx.Config.Spec.Price.Zone == "canaryislands" {
+		apiTimeLocation, err = time.LoadLocation(ApagaLuzCanaryApiTimeLocation)
+	}
 
 	for _, rangeItem := range limitedCorrelativeRanges {
 

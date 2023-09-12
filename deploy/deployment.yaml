@@ -19,15 +19,15 @@ spec:
           args:
             - run
             - --config
-            - /tmp/autoheater.yml
+            - /tmp/autoheater.yaml
 
           env:
             - name: TZ
-              value: Europe/Berlin
+              value: Atlantic/Canary
 
           volumeMounts:
-            - mountPath: /tmp/autoheater.yml
-              subPath: autoheater.yml
+            - mountPath: /tmp/autoheater.yaml
+              subPath: autoheater.yaml
               name: autoheater-data
 
       volumes:

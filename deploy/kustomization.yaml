@@ -8,7 +8,11 @@ commonLabels:
 
 replicas:
   - name: autoheater
-    count: 3
+    count: 1
+
+images:
+  - name: ghcr.io/achetronic/autoheater:latest
+    newTag: v0.1.2
 
 resources:
   - namespace.yaml
