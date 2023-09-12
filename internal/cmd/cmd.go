@@ -7,10 +7,10 @@ import (
 )
 
 const (
-	descriptionShort = `Water heater manager`
+	descriptionShort = `Heater/cooler manager`
 
 	descriptionLong = `
-	Autoheater is a simple TAPO P110 automation system for water heaters depending on temperature, power price, etc`
+	Autoheater is a simple automation system for heaters/coolers depending on temperature, power price, etc`
 )
 
 func NewAutoheaterCommand(name string) *cobra.Command {

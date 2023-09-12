@@ -2,6 +2,7 @@ package weather
 
 import (
 	"encoding/json"
+	"errors"
 	"fmt"
 	"github.com/achetronic/autoheater/api/v1alpha1"
 	"io"
@@ -13,7 +14,16 @@ import (
 	"gonum.org/v1/gonum/stat"
 )
 
-const OpenMeteoAPIUrl = "https://api.open-meteo.com/v1/forecast"
+const (
+	OpenMeteoAPIUrl = "https://api.open-meteo.com/v1/forecast"
+
+	//
+	CoordinatesNotFoundErrorMessage    = "coordinates section is required to evaluate weather"
+	TemperatureNotFoundErrorMessage    = "temperature section is required to evaluate weather"
+	HttpUrlParsingErrorMessage         = "error configuring http request: %s"
+	HttpRequestFailedErrorMessage      = "error performing http request: %s"
+	HttpResponseReadFailedErrorMessage = "error reading http response's body: %s"
+)
 
 // OpenMeteoResponseSpec represents the fields available to be sent to Open Meteo.
 // DISCLAIMER: NOT all the fields are covered. Only those that are considered useful to know if it's hot
@@ -38,54 +48,55 @@ type OpenMeteoResponseSpec struct {
 	Hourly HourlySpec `json:"hourly"`
 }
 
-// TODO
+// HourlyUnitsSpec TODO
 type HourlyUnitsSpec struct {
 	Time                string `json:"time"`
 	Temperature2m       string `json:"temperature_2m"`
 	ApparentTemperature string `json:"apparent_temperature"`
 }
 
+// HourlySpec TODO
 type HourlySpec struct {
 	Time                []string  `json:"time"`
 	Temperature2m       []float64 `json:"temperature_2m"`
 	ApparentTemperature []float64 `json:"apparent_temperature"`
 }
 
-// TODO DEVOLVER EL ERROR PA EVALUAR
-func GetApiData(autoheater *v1alpha1.Autoheater) (response *OpenMeteoResponseSpec, err error) {
+// GetApiData TODO
+func GetApiData(ctx *v1alpha1.Context) (response *OpenMeteoResponseSpec, err error) {
 
 	// Weather not enabled, just throw empty data
-	if !autoheater.Spec.Weather.Enabled {
+	if !ctx.Config.Spec.Weather.Enabled {
 		return response, nil
 	}
 
 	// Check fields regarding coordinates
-	if autoheater.Spec.Weather.Coordinates.Latitude == 0 || autoheater.Spec.Weather.Coordinates.Longitude == 0 {
-		log.Fatal("coordinates section is required to evaluate weather")
+	if ctx.Config.Spec.Weather.Coordinates.Latitude == 0 || ctx.Config.Spec.Weather.Coordinates.Longitude == 0 {
+		ctx.Logger.Fatal(CoordinatesNotFoundErrorMessage)
 	}
 
 	// Check fields regarding temperature
-	if autoheater.Spec.Weather.Temperature.Type == "" ||
-		autoheater.Spec.Weather.Temperature.Unit == "" ||
-		autoheater.Spec.Weather.Temperature.Threshold <= 0 {
-		log.Fatal("Temperature section is required to evaluate weather")
+	if ctx.Config.Spec.Weather.Temperature.Type == "" ||
+		ctx.Config.Spec.Weather.Temperature.Unit == "" ||
+		ctx.Config.Spec.Weather.Temperature.Threshold <= 0 {
+		ctx.Logger.Fatal(TemperatureNotFoundErrorMessage)
 	}
 
 	// Select between apparent or real temperature
 	parameterHourly := "apparent_temperature"
-	if autoheater.Spec.Weather.Temperature.Type == "real" {
+	if ctx.Config.Spec.Weather.Temperature.Type == "real" {
 		parameterHourly = "temperature_2m"
 	}
 
 	// Select between celsius or fahrenheit
 	parameterTemperatureUnit := "celsius"
-	if autoheater.Spec.Weather.Temperature.Unit == "fahrenheit" {
+	if ctx.Config.Spec.Weather.Temperature.Unit == "fahrenheit" {
 		parameterTemperatureUnit = "fahrenheit"
 	}
 
 	// Convert floats values to string
-	parameterLatitude := strconv.FormatFloat(autoheater.Spec.Weather.Coordinates.Latitude, 'g', 5, 64)
-	parameterLongitude := strconv.FormatFloat(autoheater.Spec.Weather.Coordinates.Longitude, 'g', 5, 64)
+	parameterLatitude := strconv.FormatFloat(ctx.Config.Spec.Weather.Coordinates.Latitude, 'g', 5, 64)
+	parameterLongitude := strconv.FormatFloat(ctx.Config.Spec.Weather.Coordinates.Longitude, 'g', 5, 64)
 
 	// Encode everything as URL
 	params := url.Values{}
@@ -96,8 +107,7 @@ func GetApiData(autoheater *v1alpha1.Autoheater) (response *OpenMeteoResponseSpe
 
 	requestUrl, err := url.Parse(OpenMeteoAPIUrl)
 	if err != nil {
-		fmt.Println("Error al analizar la URL base:", err)
-		return
+		return response, errors.New(fmt.Sprintf(HttpUrlParsingErrorMessage, err))
 	}
 
 	requestUrl.RawQuery = params.Encode()
@@ -105,16 +115,14 @@ func GetApiData(autoheater *v1alpha1.Autoheater) (response *OpenMeteoResponseSpe
 	// Send the request and wait for the result
 	resp, err := http.Get(requestUrl.String())
 	if err != nil {
-		fmt.Println("Error al hacer la solicitud HTTP:", err)
-		return
+		return response, errors.New(fmt.Sprintf(HttpRequestFailedErrorMessage, err))
 	}
 	defer resp.Body.Close()
 
 	// Read the request's body
 	body, err := io.ReadAll(resp.Body)
 	if err != nil {
-		fmt.Println("Error al leer el cuerpo de la respuesta:", err)
-		return
+		return response, errors.New(fmt.Sprintf(HttpResponseReadFailedErrorMessage, err))
 	}
 
 	// Decode response's JSON into a struct
@@ -127,28 +135,19 @@ func GetApiData(autoheater *v1alpha1.Autoheater) (response *OpenMeteoResponseSpe
 }
 
 // IsColdDay return true when temperature's mean for the whole day is under the threshold defined on config
-func IsColdDay(autoheater *v1alpha1.Autoheater) (bool, error) {
+func IsColdDay(ctx *v1alpha1.Context) (bool, error) {
 
-	response, err := GetApiData(autoheater)
+	response, err := GetApiData(ctx)
 	if err != nil {
 		return false, err
 	}
 
-	//modeResult, countResult := stat.Mode(response.Hourly.ApparentTemperature, nil)
-	//if autoheater.Spec.Weather.Temperature.Type == "real" {
-	//	modeResult, countResult = stat.Mode(response.Hourly.Temperature2m, nil)
-	//}
-	//
-	//if modeResult >= float64(autoheater.Spec.Weather.Temperature.Threshold) {
-	//	return false, nil
-	//}
-
 	meanResult := stat.Mean(response.Hourly.ApparentTemperature, nil)
-	if autoheater.Spec.Weather.Temperature.Type == "real" {
+	if ctx.Config.Spec.Weather.Temperature.Type == "real" {
 		meanResult = stat.Mean(response.Hourly.Temperature2m, nil)
 	}
 
-	if meanResult >= float64(autoheater.Spec.Weather.Temperature.Threshold) {
+	if meanResult >= float64(ctx.Config.Spec.Weather.Temperature.Threshold) {
 		return false, nil
 	}
 

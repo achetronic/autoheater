@@ -9,19 +9,19 @@ import (
 )
 
 // Marshal TODO
-func Marshal(config v1alpha1.Autoheater) (bytes []byte, err error) {
+func Marshal(config v1alpha1.ConfigSpec) (bytes []byte, err error) {
 	bytes, err = yaml.Marshal(config)
 	return bytes, err
 }
 
 // Unmarshal TODO
-func Unmarshal(bytes []byte) (config v1alpha1.Autoheater, err error) {
+func Unmarshal(bytes []byte) (config v1alpha1.ConfigSpec, err error) {
 	err = yaml.Unmarshal(bytes, &config)
 	return config, err
 }
 
 // ReadFile TODO
-func ReadFile(filepath string) (config v1alpha1.Autoheater, err error) {
+func ReadFile(filepath string) (config v1alpha1.ConfigSpec, err error) {
 	var fileBytes []byte
 	fileBytes, err = os.ReadFile(filepath)
 	if err != nil {

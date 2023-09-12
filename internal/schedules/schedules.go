@@ -1,34 +1,88 @@
 package schedules
 
 import (
-	"fmt"
-	"github.com/achetronic/autoheater/api/v1alpha1"
-	"github.com/achetronic/autoheater/internal/price"
 	"sync"
 	"time"
+
+	"github.com/achetronic/autoheater/api/v1alpha1"
+	"github.com/achetronic/autoheater/internal/integrations/taposmartplug"
+	"github.com/achetronic/autoheater/internal/integrations/webhook"
+	"github.com/achetronic/autoheater/internal/price"
+	"github.com/achetronic/autoheater/internal/weather"
+
+	"github.com/avast/retry-go"
 )
 
 const (
-	RootSchedulerStartedMessage = "Ejecutando el programador de tareas (%s) \n"
+	RootSchedulerStartedMessage = "task scheduler is running @ %s"
 
-	StartDeviceProgrammedActionMessage = "Tarea programada. Encender el dispositivo (%s) \n"
-	StartDeviceExecutedActionMessage   = "Tarea ejecutada. Encender el dispositivo (%s) \n"
+	StartDeviceProgrammedActionMessage = "task programmed. device will be turned on @ %s"
+	StartDeviceExecutedActionMessage   = "task completed. device has been turned on @ %s"
 
-	StopDeviceProgrammedActionMessage = "Tarea programada. Apagar el dispositivo (%s) \n"
-	StopDeviceExecutedActionMessage   = "Tarea ejecutada. Apagar el dispositivo (%s) \n"
+	// --
+	StopDeviceProgrammedActionMessage = "task programmed. device will be turned off @ %s"
+	StopDeviceExecutedActionMessage   = "task completed. device has been turned off @ %s"
+
+	WeatherNotAvailableErrorMessage         = "impossible to determine whether it's cold in your coordinates"
+	TapoStartExecutionFailedErrorMessage    = "error executing start action for 'tapo smartplug' integration: %s"
+	TapoStopExecutionFailedErrorMessage     = "error executing stop action for 'tapo smartplug' integration: %s"
+	WebhookStartExecutionFailedErrorMessage = "error executing start action for 'webhook' integration: %s"
+	WebhookStopExecutionFailedErrorMessage  = "error executing stop action for 'tapo webhook' integration: %s"
 )
 
 // RunScheduler run scheduling function periodically.
 // It's executed always in the beginning of the day as it's the moment when the PVPC prices are really known
-func RunScheduler(autoheater *v1alpha1.Autoheater, schedules []price.Schedule) {
+func RunScheduler(ctx *v1alpha1.Context) {
+
+	var err error
+
+	var isCold bool
+	var schedules []price.Schedule
+
+	retry.Attempts(3)
+	retry.Delay(5 * time.Second)
 
 	for {
 		currentTime := time.Now().In(time.Local)
 
-		//
-		fmt.Printf(RootSchedulerStartedMessage, time.Now().In(time.Local))
-		ScheduleActions(autoheater, schedules)
+		// Disable the scheduler in (hot days for heaters) && (cold days for coolers)
+		if ctx.Config.Spec.Weather.Enabled {
 
+			err = retry.Do(func() (err error) {
+				isCold, err = weather.IsColdDay(ctx)
+				if err != nil {
+					ctx.Logger.Info(WeatherNotAvailableErrorMessage)
+				}
+				return err
+			})
+
+			if err != nil {
+				goto waitNextDay
+			}
+
+			// Warm day, not enable the heater
+			// Cold day, not enable the cooler
+			if (ctx.Config.Spec.Device.Type == "heater" && !isCold) ||
+				(ctx.Config.Spec.Device.Type == "cooler" && isCold) {
+				goto waitNextDay
+			}
+		}
+
+		// Get the sections with the best prices to satisfy the hours required by the user
+		err = retry.Do(func() (err error) {
+			schedules, err = price.GetBestSchedules(ctx)
+			return err
+		})
+
+		if err != nil {
+			goto waitNextDay
+		}
+
+		//
+		ctx.Logger.Infof(RootSchedulerStartedMessage, time.Now().In(time.Local).Format(time.RFC822))
+		ScheduleActions(ctx, schedules)
+
+	waitNextDay:
 		// Wait until next programmed hour (following day)
 		// By default, next scheduling moment is 12:00 AM
 		nextDay := currentTime.Add(24 * time.Hour)
@@ -40,7 +94,12 @@ func RunScheduler(autoheater *v1alpha1.Autoheater, schedules []price.Schedule) {
 
 // ScheduleActions create goroutines to execute actions delayed until moments given by schedules list.
 // To change the timezone of programmed tasks, just set TZ environment variable to desired one, i.e: TZ=Atlantic/Canary
-func ScheduleActions(autoheater *v1alpha1.Autoheater, schedules []price.Schedule) {
+func ScheduleActions(ctx *v1alpha1.Context, schedules []price.Schedule) {
+
+	// Send a signal to stop the device before scheduling new goroutines.
+	// This is to avoid keeping the device turned on in expensive hours in case this CLI failed in the middle
+	// of some time range, and restarted after the range finished
+	ExecuteStopAction(ctx)
 
 	// Get current time
 	currentTime := time.Now().In(time.Local)
@@ -51,39 +110,49 @@ func ScheduleActions(autoheater *v1alpha1.Autoheater, schedules []price.Schedule
 	// Iterate over schedules
 	for _, schedule := range schedules {
 
-		// Create a goroutine to execute some actions in desired moment (start event)
+		//
 		scheduleStartTime := schedule.Start.In(time.Local)
 		durationUntilStart := scheduleStartTime.Sub(currentTime)
 
-		if durationUntilStart > 0 {
+		scheduleStopTime := schedule.Stop.In(time.Local)
+		durationUntilStop := scheduleStopTime.Sub(currentTime)
+
+		//
+		beforeTheRange := durationUntilStart > 0
+		insideTheRange := durationUntilStart < 0 && durationUntilStop > 0
+
+		// Create a goroutine to execute some actions in desired moment (start event)
+		if beforeTheRange || insideTheRange {
 			syncScheduleWait.Add(1)
 
+			// Starting moment is passed, but still have time to start
+			if insideTheRange {
+				durationUntilStart = 0
+			}
+
 			go func(startTime time.Time, startIn time.Duration) {
-				fmt.Printf(StartDeviceProgrammedActionMessage, startTime)
+				ctx.Logger.Infof(StartDeviceProgrammedActionMessage, startTime.Format(time.RFC822))
 				syncScheduleWait.Done()
 
 				time.Sleep(startIn)
-				ExecuteStartAction(autoheater)
+				ExecuteStartAction(ctx)
 
-				fmt.Printf(StartDeviceExecutedActionMessage, startTime)
+				ctx.Logger.Infof(StartDeviceExecutedActionMessage, startTime.Format(time.RFC822))
 			}(scheduleStartTime, durationUntilStart)
 		}
 
 		// Create a goroutine to execute some actions in desired moment (stop event)
-		scheduleStopTime := schedule.Stop.In(time.Local)
-		durationUntilStop := scheduleStopTime.Sub(currentTime)
-
 		if durationUntilStop > 0 {
 			syncScheduleWait.Add(1)
 
 			go func(stopTime time.Time, stopIn time.Duration) {
-				fmt.Printf(StopDeviceProgrammedActionMessage, stopTime)
+				ctx.Logger.Infof(StopDeviceProgrammedActionMessage, stopTime.Format(time.RFC822))
 				syncScheduleWait.Done()
 
 				time.Sleep(stopIn)
-				ExecuteStopAction(autoheater)
+				ExecuteStopAction(ctx)
 
-				fmt.Printf(StopDeviceExecutedActionMessage, stopTime)
+				ctx.Logger.Infof(StopDeviceExecutedActionMessage, stopTime.Format(time.RFC822))
 			}(scheduleStopTime, durationUntilStop)
 		}
 
@@ -92,12 +161,33 @@ func ScheduleActions(autoheater *v1alpha1.Autoheater, schedules []price.Schedule
 	}
 }
 
-// ---
-func ExecuteStartAction(autoheater *v1alpha1.Autoheater) {
-	fmt.Printf("Hola, soy una Goroutina que va a encenderte la vida \n")
+// ExecuteStartAction execute an action for each defined integration on 'start' events
+func ExecuteStartAction(ctx *v1alpha1.Context) {
+
+	// Execute the action for Tapo Smart plug device
+	_, err := taposmartplug.TurnOnDevice(ctx)
+	if err != nil {
+		ctx.Logger.Infof(TapoStartExecutionFailedErrorMessage, err)
+	}
+
+	// Execute the action for webhook device
+	_, err = webhook.SendStartDeviceEvent(ctx)
+	if err != nil {
+		ctx.Logger.Infof(WebhookStartExecutionFailedErrorMessage, err)
+	}
 }
 
-// --
-func ExecuteStopAction(autoheater *v1alpha1.Autoheater) {
-	fmt.Printf("Hola, soy OTRA goroutine que va a apagarte la vida \n")
+// ExecuteStopAction execute an action for each defined integration on 'stop' events
+func ExecuteStopAction(ctx *v1alpha1.Context) {
+
+	_, err := taposmartplug.TurnOffDevice(ctx)
+	if err != nil {
+		ctx.Logger.Infof(TapoStopExecutionFailedErrorMessage, err)
+	}
+
+	// Execute the action for webhook device
+	_, err = webhook.SendStopDeviceEvent(ctx)
+	if err != nil {
+		ctx.Logger.Infof(WebhookStopExecutionFailedErrorMessage, err)
+	}
 }

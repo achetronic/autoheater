@@ -1,21 +1,27 @@
 package run
 
 import (
+	"fmt"
+	"github.com/achetronic/autoheater/api/v1alpha1"
 	"github.com/achetronic/autoheater/internal/config"
-	"github.com/achetronic/autoheater/internal/price"
 	"github.com/achetronic/autoheater/internal/schedules"
-	"github.com/achetronic/autoheater/internal/weather"
 	"github.com/spf13/cobra"
+	"go.uber.org/zap"
+	"go.uber.org/zap/zapcore"
 	"log"
-	"net/http"
 	_ "net/http/pprof"
+	"time"
 )
 
 const (
-	descriptionShort = `execute the commands from the kolega config file`
+	descriptionShort = `execute the commands from the autoheater config file`
 
 	descriptionLong = `
-	Run execute the command list in the hosts specified in the kolega config file.`
+	Run execute the command list in the hosts specified in the autoheater config file.`
+
+	ConfigFlagErrorMessage      = "impossible to get flag --config: %s"
+	LogLevelFlagErrorMessage    = "impossible to get flag --log-level: %s"
+	ConfigNotParsedErrorMessage = "impossible to parse config file: %s"
 )
 
 func NewCommand() *cobra.Command {
@@ -29,6 +35,7 @@ func NewCommand() *cobra.Command {
 	}
 
 	cmd.Flags().String("config", "autoheater.yaml", "Path to the YAML config file")
+	cmd.Flags().String("log-level", "info", "Verbosity level for logs")
 
 	return cmd
 }
@@ -37,47 +44,51 @@ func NewCommand() *cobra.Command {
 // https://open-meteo.com/en/docs#latitude=28.0930127&longitude=-16.6357443&hourly=temperature_2m,relativehumidity_2m,apparent_temperature&timezone=Europe%2FLondon&forecast_days=1
 func RunCommand(cmd *cobra.Command, args []string) {
 	var err error
+	var ctx v1alpha1.Context
 
+	// Check the flags for this command
 	configPath, err := cmd.Flags().GetString("config")
-	log.Print(configPath)
 	if err != nil {
-		log.Fatalf("La flag del fichero de config está chunga: %s", err)
+		log.Fatalf(ConfigFlagErrorMessage, err)
+	}
+
+	logLevelFlag, err := cmd.Flags().GetString("log-level")
+	if err != nil {
+		log.Fatalf(LogLevelFlagErrorMessage, err)
+	}
+
+	//
+	logLevel, _ := zap.ParseAtomicLevel(logLevelFlag)
+
+	// Initialize the logger
+	loggerConfig := zap.NewProductionConfig()
+	loggerConfig.EncoderConfig.TimeKey = "timestamp"
+	loggerConfig.EncoderConfig.EncodeTime = zapcore.TimeEncoderOfLayout(time.RFC3339)
+	loggerConfig.Level.SetLevel(logLevel.Level())
+
+	// Configure the logger
+	logger, err := loggerConfig.Build()
+	if err != nil {
+		log.Fatal(err)
+	}
+	sugarLogger := logger.Sugar()
+
+	// Configure application's context
+	ctx = v1alpha1.Context{
+		Config: &v1alpha1.ConfigSpec{},
+		Logger: sugarLogger,
 	}
 
 	// Get and parse the config
 	configContent, err := config.ReadFile(configPath)
 	if err != nil {
-		log.Fatalf("No se pudo parsear: %v", err)
+		ctx.Logger.Fatalf(fmt.Sprintf(ConfigNotParsedErrorMessage, err))
 	}
 
-	//log.Print(configContent)
-	//os.Exit(0)
-
-	if configContent.Spec.Weather.Enabled {
-		zorro, _ := weather.IsColdDay(&configContent)
-		log.Print(zorro)
-	}
-
-	juan, _ := price.GetCorrelativeHourRangesByPrice(&configContent)
-	log.Print(juan)
-
-	pepe, _ := price.GetBestSchedules(&configContent)
-	log.Print(pepe)
-	_ = pepe
+	// Set the configuration inside the global context
+	ctx.Config = &configContent
 
 	//
-	schedules.RunScheduler(&configContent, pepe)
-
-	//
-	_ = err
-
-	// Init web server for pprof debugging
-	err = http.ListenAndServe("localhost:8080", nil)
-	if err != nil {
-		log.Print("pepito perigoloso")
-		return
-	}
-
+	schedules.RunScheduler(&ctx)
 	select {}
-
 }

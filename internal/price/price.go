@@ -1,3 +1,9 @@
+// ATTENTION:
+// This package uses ApagaLuz as a datasource for PVPC. This datasource uses official ESIOS' API from the spanish
+// government, which return data using CEST timezone. As a consequence, all this package works using CEST timezone
+// and the other packages must take this into account to convert it and do whatever they need.
+// [ESIOS] Ref: https://www.esios.ree.es/es/pvpc
+
 package price
 
 import (
@@ -20,6 +26,9 @@ const (
 
 	//
 	dateLayout = "02/01/2006 15"
+
+	//
+	ActiveHoursOutOfRangeErrorMessage = "config.device.activeHours field must be a number between 1 and 24"
 )
 
 // Schedule represents a time range to start and stop an external device
@@ -39,22 +48,12 @@ type HourData struct {
 // HourDataList represents the entire response retrieved from ApagaLuz API
 type HourDataList []HourData
 
-// GetApiData TODO DEVOLVER EL ERROR PA EVALUAR
-func GetApiData(autoheater *v1alpha1.Autoheater) (response *HourDataList, err error) {
-
-	// Weather not enabled, just throw empty data
-	if !autoheater.Spec.Weather.Enabled {
-		return response, nil
-	}
-
-	// Check fields regarding coordinates
-	if autoheater.Spec.Weather.Coordinates.Latitude == 0 || autoheater.Spec.Weather.Coordinates.Longitude == 0 {
-		return response, errors.New("coordinates section is required to evaluate weather")
-	}
+// GetApiData TODO
+func GetApiData(ctx *v1alpha1.Context) (response *HourDataList, err error) {
 
 	// Send the request and wait for the result
 	dataApiUrl := ApagaLuzAPIUrl
-	if autoheater.Spec.Price.Zone == "canaryislands" {
+	if ctx.Config.Spec.Price.Zone == "canaryislands" {
 		dataApiUrl = ApagaLuzCanaryAPIUrl
 	}
 	resp, err := http.Get(dataApiUrl)
@@ -72,13 +71,19 @@ func GetApiData(autoheater *v1alpha1.Autoheater) (response *HourDataList, err er
 	// Decode response's JSON into a struct
 	err = json.Unmarshal(body, &response)
 
+	// Discard passed hours when requested by config
+	if ctx.Config.Spec.Global.IgnorePassedHours {
+		currentHour := time.Now().In(time.Local).Hour()
+		*response = (*response)[currentHour:24]
+	}
+
 	return response, err
 }
 
 // TODO
-func GetApiDataByPrice(autoheater *v1alpha1.Autoheater) (response *HourDataList, err error) {
+func GetApiDataByPrice(ctx *v1alpha1.Context) (response *HourDataList, err error) {
 
-	response, err = GetApiData(autoheater)
+	response, err = GetApiData(ctx)
 	if err != nil {
 		return response, err
 	}
@@ -90,16 +95,30 @@ func GetApiDataByPrice(autoheater *v1alpha1.Autoheater) (response *HourDataList,
 	return response, nil
 }
 
-// GetCorrelativeHourRangesByPrice return a list of correlative hour ranges, sorted by price (from lowest to highest)
-// This is what we want to achieve (best priced are always in the first ranges):
-// [[hour_1, hour_2], [hour_5], [hour_7, hour_8]]
-func GetCorrelativeHourRangesByPrice(autoheater *v1alpha1.Autoheater) (correlativeRanges []HourDataList, err error) {
+// GetLimitedCorrelativeHourRanges return an array whose elements are lists of correlative hours.
+// Those hours were previously sorted and selected by having the lowest price as criteria
+func GetLimitedCorrelativeHourRanges(ctx *v1alpha1.Context) (correlativeRanges []HourDataList, err error) {
 
-	response, err := GetApiDataByPrice(autoheater)
+	// 1. Get all the data sorted by price
+	response, err := GetApiDataByPrice(ctx)
 	if err != nil {
 		return correlativeRanges, err
 	}
 
+	// Check desired amount of hours. Must be between 0 than 24
+	if ctx.Config.Spec.Device.ActiveHours < 1 || ctx.Config.Spec.Device.ActiveHours > 24 {
+		return correlativeRanges, errors.New(ActiveHoursOutOfRangeErrorMessage)
+	}
+
+	// 2. Keep the N cheapest items, discard the others
+	*response = (*response)[0:ctx.Config.Spec.Device.ActiveHours]
+
+	// 3. Re-sort them by hour
+	sort.Slice(*response, func(i, j int) bool {
+		return (*response)[i].Hour < (*response)[j].Hour
+	})
+
+	// 4. Craft an array whose elements are lists of correlative hours
 	correlativeRangesIndex := 0
 
 	for index, item := range *response {
@@ -127,48 +146,14 @@ func GetCorrelativeHourRangesByPrice(autoheater *v1alpha1.Autoheater) (correlati
 	}
 
 	return correlativeRanges, err
-
-}
-
-// GetLimitedCorrelativeHourRanges return as many correlative hour ranges (previously sorted by price) as needed
-// to cover required active hours given by the config file
-func GetLimitedCorrelativeHourRanges(autoheater *v1alpha1.Autoheater) (correlativeRanges []HourDataList, err error) {
-
-	correlativeRangesByPrice, err := GetCorrelativeHourRangesByPrice(autoheater)
-	if err != nil {
-		return correlativeRanges, err
-	}
-
-	// Select as many hours as required by config
-	requiredHoursLeft := autoheater.Spec.Device.ActiveHours
-
-	for _, rangeItem := range correlativeRangesByPrice {
-
-		// Current range can cover all required hours left
-		if len(rangeItem) == requiredHoursLeft {
-			correlativeRanges = append(correlativeRanges, rangeItem)
-			break
-		}
-
-		if len(rangeItem) > requiredHoursLeft {
-			correlativeRanges = append(correlativeRanges, rangeItem[0:requiredHoursLeft])
-			break
-		}
-
-		correlativeRanges = append(correlativeRanges, rangeItem)
-		requiredHoursLeft = requiredHoursLeft - len(rangeItem)
-	}
-
-	return correlativeRanges, err
 }
 
 // GetBestSchedules return a list of schedules that meet 'active hours' config parameter
 // Starts are delayed by 5 minutes, and stops are 5 minutes early. Done in purpose to avoid time collisions on
 // parallel scheduling. This can be improved a lot. Are you willing to contribute?
-// DISCLAIMER: ESIOS' API (ApagaLuz's datasource) uses CEST as timezone. This is needed to be taken into account later.
-func GetBestSchedules(autoheater *v1alpha1.Autoheater) (schedules []Schedule, err error) {
+func GetBestSchedules(ctx *v1alpha1.Context) (schedules []Schedule, err error) {
 
-	limitedCorrelativeRanges, err := GetLimitedCorrelativeHourRanges(autoheater)
+	limitedCorrelativeRanges, err := GetLimitedCorrelativeHourRanges(ctx)
 	if err != nil {
 		return schedules, err
 	}
@@ -195,7 +180,7 @@ func GetBestSchedules(autoheater *v1alpha1.Autoheater) (schedules []Schedule, er
 
 		// Only one item: in 1 hour stop it
 		if len(rangeItem) == 1 {
-			stopTime = startTime.Add(50 * time.Minute)
+			stopTime = startTime.Add(50 * time.Minute).In(apiTimeLocation)
 			goto appendSchedule
 		}
 
