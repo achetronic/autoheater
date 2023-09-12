@@ -4,6 +4,8 @@
 
 A CLI to automatically turn on/off your heater/cooler based on prices and weather to save money
 
+> At this moment, it's only available for Spain. If you want to cover more locations, consider [contributing](#how-to-contribute)
+
 ## Motivation
 
 Domotic devices are cool, but they will be cooler when [Matter](https://csa-iot.org/all-solutions/matter/) 
