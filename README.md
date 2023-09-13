@@ -1,6 +1,12 @@
 # Autoheater
 
-## Description
+<img src="https://raw.githubusercontent.com/achetronic/autoheater/master/docs/img/logo.png" alt="Autoheater Logo (Main) logo." width="150">
+
+![GitHub go.mod Go version (subdirectory of monorepo)](https://img.shields.io/github/go-mod/go-version/achetronic/autoheater)
+![GitHub](https://img.shields.io/github/license/achetronic/autoheater)
+
+![YouTube Channel Subscribers](https://img.shields.io/youtube/channel/subscribers/UCeSb3yfsPNNVr13YsYNvCAw?label=achetronic&link=http%3A%2F%2Fyoutube.com%2Fachetronic)
+![X (formerly Twitter) Follow](https://img.shields.io/twitter/follow/achetronic?style=flat&logo=twitter&link=https%3A%2F%2Ftwitter.com%2Fachetronic)
 
 A CLI to automatically turn on/off your heater/cooler based on prices and weather to save money
 
@@ -167,3 +173,25 @@ The code will be reviewed and tested (always)
 
 > We are developers and hate bad code. For that reason we ask you the highest quality
 > on each line of code to improve this project on each iteration.
+
+## License
+
+Copyright 2022.
+
+Licensed under the Apache License, Version 2.0 (the "License");
+you may not use this file except in compliance with the License.
+You may obtain a copy of the License at
+
+    http://www.apache.org/licenses/LICENSE-2.0
+
+Unless required by applicable law or agreed to in writing, software
+distributed under the License is distributed on an "AS IS" BASIS,
+WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+See the License for the specific language governing permissions and
+limitations under the License.
+
+## Special mention
+
+This project was done using IDEs from JetBrains. They helped us to develop faster, so we recommend them a lot! 🤓
+
+<img src="https://resources.jetbrains.com/storage/products/company/brand/logos/jb_beam.png" alt="JetBrains Logo (Main) logo." width="150">
