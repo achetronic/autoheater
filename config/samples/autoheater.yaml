@@ -60,6 +60,10 @@ spec:
       # Data for sending the events to TAPO P1XX devices (p100, p110, etc)
       tapoSmartPlug:
         address: "192.168.1.100"
+
+        # (Optional) username and password for auth. It's the same used to access the app (it's accessed locally, but
+        # Tapo devices are configured that way when they are set up)
+        # Can be defined by env: TAPO_SMARTPLUG_USERNAME, TAPO_SMARTPLUG_PASSWORD
         auth:
           username: placeholder@gmail.com
           password: 'xxxPLACEHOLDERxxx'
@@ -68,7 +72,9 @@ spec:
       # POST <url>: { event: 'start', name: 'pepito', timestamp: ''}
       webhook:
         url: "https://webhook.site/a7303a4b-4377-49d7-b109-6106fbe21052"
+
         # (Optional) username and password for basic auth
+        # Can be defined by env: WEBHOOK_USERNAME, WEBHOOK_PASSWORD
         auth:
           username: 'placeholder'
           password: 'placeholder'

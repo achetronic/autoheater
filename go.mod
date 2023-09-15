@@ -4,6 +4,7 @@ go 1.21
 
 require (
 	github.com/avast/retry-go v3.0.0+incompatible
+	github.com/caarlos0/env/v9 v9.0.0
 	github.com/richardjennings/tapo v0.0.1
 	github.com/spf13/cobra v1.7.0
 	go.uber.org/zap v1.25.0

@@ -2,15 +2,18 @@ package run
 
 import (
 	"fmt"
-	"github.com/achetronic/autoheater/api/v1alpha1"
-	"github.com/achetronic/autoheater/internal/config"
-	"github.com/achetronic/autoheater/internal/schedules"
-	"github.com/spf13/cobra"
-	"go.uber.org/zap"
-	"go.uber.org/zap/zapcore"
+	"github.com/caarlos0/env/v9"
 	"log"
 	_ "net/http/pprof"
 	"time"
+
+	"github.com/achetronic/autoheater/api/v1alpha1"
+	"github.com/achetronic/autoheater/internal/config"
+	"github.com/achetronic/autoheater/internal/schedules"
+
+	"github.com/spf13/cobra"
+	"go.uber.org/zap"
+	"go.uber.org/zap/zapcore"
 )
 
 const (
@@ -22,6 +25,7 @@ const (
 	ConfigFlagErrorMessage      = "impossible to get flag --config: %s"
 	LogLevelFlagErrorMessage    = "impossible to get flag --log-level: %s"
 	ConfigNotParsedErrorMessage = "impossible to parse config file: %s"
+	EnvNotParsedErrorMessage    = "impossible to parse environment variables: %s"
 )
 
 func NewCommand() *cobra.Command {
@@ -83,6 +87,12 @@ func RunCommand(cmd *cobra.Command, args []string) {
 	configContent, err := config.ReadFile(configPath)
 	if err != nil {
 		ctx.Logger.Fatalf(fmt.Sprintf(ConfigNotParsedErrorMessage, err))
+	}
+
+	// Get and parse environment variables for credentials
+	err = env.Parse(&configContent)
+	if err != nil {
+		ctx.Logger.Fatalf(fmt.Sprintf(EnvNotParsedErrorMessage, err))
 	}
 
 	// Set the configuration inside the global context

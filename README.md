@@ -51,6 +51,20 @@ They are described in the following table:
 | `--config`    | Define the path to the config file | `autoheater.yaml` | `--config ./autoheater.yaml` |
 | `--log-level` | Define the verbosity of the logs   |      `info`       | `--log-level info`           |
 
+## Environment variables
+
+Some parameters can be defined not only by fixing them into the configuration file, but setting them as environment
+variables. This is mostly used by credentials as a safer way to work with containers:
+
+> Environment variables take precedence over configuration
+
+| Name                      | Description                                                          | Default | 
+|:--------------------------|:---------------------------------------------------------------------|--------:|
+| `TAPO_SMARTPLUG_USERNAME` | Define the username for authentication on Tapo SmartPlug integration | `empty` |
+| `TAPO_SMARTPLUG_PASSWORD` | Define the password for authentication on Tapo SmartPlug integration | `empty` |
+| `WEBHOOK_USERNAME`        | Define the username for basic auth on webhooks integration           | `empty` |
+| `WEBHOOK_PASSWORD`        | Define the password for basic auth on webhooks integration           | `empty` |
+
 ## Examples
 
 Here you have a complete example. More up-to-date one will always be maintained in 
