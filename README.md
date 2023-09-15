@@ -162,8 +162,7 @@ Binary files for most popular platforms will be added to the [releases](https://
 
 An entire example is placed inside [deploy](./deploy) directory.
 
-> ⚠️ Disclaimer: Take care of hardening it, as passwords are not read from environment variables yet. 
-> Are you willing to contribute?
+> ⚠️ Disclaimer: Take care of hardening it. Passwords should be read from environment variables.
 
 ### Docker
 
