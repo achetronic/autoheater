@@ -1,3 +1,5 @@
+github.com/achetronic/tapogo v0.1.1 h1:HbTRMUCl6rnd7Q//R/RSfT9uvJHz2ynFqyb2upbdUAw=
+github.com/achetronic/tapogo v0.1.1/go.mod h1:DVflSfbePg4SAjRy0aeMYJ0vj4Pjesw5sw6y4yP0f8w=
 github.com/avast/retry-go v3.0.0+incompatible h1:4SOWQ7Qs+oroOTQOYnAHqelpCO0biHSxpiH9JdtuBj0=
 github.com/avast/retry-go v3.0.0+incompatible/go.mod h1:XtSnn+n/sHqQIpZ10K1qAevBhOOCWBLXXy3hyiqqBrY=
 github.com/benbjohnson/clock v1.3.0 h1:ip6w0uFQkncKQ979AypyG0ER7mqUSBdKLOgAle/AT8A=
