@@ -2,6 +2,7 @@ package v1alpha1
 
 // --
 type TapoSmartPlugSpec struct {
+	Client  string `yaml:"client"`
 	Address string `yaml:"address"`
 	Auth    struct {
 		Username string `yaml:"username" env:"TAPO_SMARTPLUG_USERNAME"`
