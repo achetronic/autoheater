@@ -129,9 +129,15 @@ spec:
     # between different domotic systems (sending the events to an HTTP endpoint, mqtt, etc.)
     # ATTENTION: All configured integrations will act at the same time
     integrations:
-
+      
       # Data for sending the events to TAPO P1XX devices (p100, p110, etc)
       tapoSmartPlug:
+        # (Optional) protocol used to communicate with Tapo plugs.
+        # TPLink tends to change completely the protocol from time to time.
+        # legacy: is used for older firmware versions and supports 'securePassthrough' protocol
+        # modern: (default) is used for newer firmware versions and supports 'KLAP' protocol
+        client: modern
+        
         address: "192.168.1.100"
         auth:
           username: placeholder@gmail.com
