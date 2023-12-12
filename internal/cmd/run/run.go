@@ -22,10 +22,11 @@ const (
 	descriptionLong = `
 	Run execute the command list in the hosts specified in the autoheater config file.`
 
-	ConfigFlagErrorMessage      = "impossible to get flag --config: %s"
-	LogLevelFlagErrorMessage    = "impossible to get flag --log-level: %s"
-	ConfigNotParsedErrorMessage = "impossible to parse config file: %s"
-	EnvNotParsedErrorMessage    = "impossible to parse environment variables: %s"
+	ConfigFlagErrorMessage       = "impossible to get flag --config: %s"
+	LogLevelFlagErrorMessage     = "impossible to get flag --log-level: %s"
+	DisableTraceFlagErrorMessage = "impossible to get flag --disable-trace: %s"
+	ConfigNotParsedErrorMessage  = "impossible to parse config file: %s"
+	EnvNotParsedErrorMessage     = "impossible to parse environment variables: %s"
 )
 
 func NewCommand() *cobra.Command {
@@ -40,6 +41,7 @@ func NewCommand() *cobra.Command {
 
 	cmd.Flags().String("config", "autoheater.yaml", "Path to the YAML config file")
 	cmd.Flags().String("log-level", "info", "Verbosity level for logs")
+	cmd.Flags().Bool("disable-trace", false, "Disable showing traces in logs")
 
 	return cmd
 }
@@ -61,11 +63,21 @@ func RunCommand(cmd *cobra.Command, args []string) {
 		log.Fatalf(LogLevelFlagErrorMessage, err)
 	}
 
+	disableTraceFlag, err := cmd.Flags().GetBool("disable-trace")
+	if err != nil {
+		log.Fatalf(DisableTraceFlagErrorMessage, err)
+	}
+
 	//
 	logLevel, _ := zap.ParseAtomicLevel(logLevelFlag)
 
 	// Initialize the logger
 	loggerConfig := zap.NewProductionConfig()
+	if disableTraceFlag {
+		loggerConfig.DisableStacktrace = true
+		loggerConfig.DisableCaller = true
+	}
+
 	loggerConfig.EncoderConfig.TimeKey = "timestamp"
 	loggerConfig.EncoderConfig.EncodeTime = zapcore.TimeEncoderOfLayout(time.RFC3339)
 	loggerConfig.Level.SetLevel(logLevel.Level())

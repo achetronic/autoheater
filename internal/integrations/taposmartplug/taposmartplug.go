@@ -6,14 +6,25 @@ import (
 	"github.com/achetronic/autoheater/api/v1alpha1"
 	tapogotypes "github.com/achetronic/tapogo/api/types"
 	"github.com/achetronic/tapogo/pkg/tapogo"
+	"github.com/avast/retry-go"
 	"github.com/richardjennings/tapo/pkg/tapo"
 	"time"
 )
 
 const (
-	RequiredConfigFieldsMissingMessage = "some mandatory config field is missing on Tapo SmartPlug integration"
+	// Global messages
+	RequiredConfigFieldsMissingMessage = "some mandatory config field is missing on Tapo smartplug integration"
 
-	RequestRetryAttempts = 3
+	// Error messages
+	TurningOffDuringRetriesError = "error turning off tapo smartplug device (retries left?): %s"
+	TurningOnDuringRetriesError  = "error turning on tapo smartplug device (retries left?): %s"
+	TurningOffError              = "error turning off tapo smartplug device: %s"
+	TurningOnError               = "error turning on tapo smartPlug device: %s"
+	ClientCreationError          = "tapo client failed on creation: %s"
+
+	// Default values
+	RequestRetryAttempts      = 10
+	RequestRetryDelayDuration = time.Second * 2
 )
 
 // --
@@ -45,30 +56,41 @@ func TurnOnDevice(ctx *v1alpha1.Context) (tapoResponse map[string]interface{}, e
 	case "legacy":
 		tapoClient, err := tapo.NewTapo(tapoConfig.Address, tapoConfig.Auth.Username, tapoConfig.Auth.Password)
 		if err != nil {
+			ctx.Logger.Errorf(ClientCreationError, err)
 			return tapoResponse, err
 		}
 
 		tapoResponse, err = tapoClient.TurnOn()
+		if err != nil {
+			ctx.Logger.Errorf(TurningOnError, err)
+		}
 
 	default:
-		tapoClientNew, err := tapogo.NewTapo(tapoConfig.Address, tapoConfig.Auth.Username, tapoConfig.Auth.Password)
-		if err != nil {
-			return tapoResponse, err
-		}
-
 		// New KLAP protocol throws random errors when the requests are done at speed.
-		// Retrying mostly solve the issue
+		// Retrying with a new token mostly solve the issue (jaquecoso...)
 		tapoResponseNew := &tapogotypes.ResponseSpec{}
-		for retryAttempt := 0; retryAttempt < RequestRetryAttempts; retryAttempt++ {
-			tapoResponseNew, err = tapoClientNew.TurnOn()
-			if err != nil {
-				time.Sleep(time.Millisecond * 250) // Magic number 0.25s
-				continue
-			}
-			break
-		}
+		err = retry.Do(
+			func() (err error) {
+				tapoClientNew, err := tapogo.NewTapo(tapoConfig.Address,
+					tapoConfig.Auth.Username,
+					tapoConfig.Auth.Password,
+					&tapogo.TapoOptions{})
+				if err != nil {
+					ctx.Logger.Errorf(ClientCreationError, err)
+					return err
+				}
+
+				tapoResponseNew, err = tapoClientNew.TurnOn()
+				if err != nil {
+					ctx.Logger.Errorf(TurningOnDuringRetriesError, err)
+				}
+				return err
+			},
+			retry.Attempts(RequestRetryAttempts),
+			retry.Delay(RequestRetryDelayDuration))
 
 		if err != nil {
+			ctx.Logger.Errorf(TurningOnError, err)
 			return tapoResponse, err
 		}
 
@@ -102,30 +124,42 @@ func TurnOffDevice(ctx *v1alpha1.Context) (tapoResponse map[string]interface{}, 
 	case "legacy":
 		tapoClient, err := tapo.NewTapo(tapoConfig.Address, tapoConfig.Auth.Username, tapoConfig.Auth.Password)
 		if err != nil {
+			ctx.Logger.Errorf(ClientCreationError, err)
 			return tapoResponse, err
 		}
 
 		tapoResponse, err = tapoClient.TurnOff()
+		if err != nil {
+			ctx.Logger.Errorf(TurningOffError, err)
+		}
 
 	default:
-		tapoClientNew, err := tapogo.NewTapo(tapoConfig.Address, tapoConfig.Auth.Username, tapoConfig.Auth.Password)
-		if err != nil {
-			return tapoResponse, err
-		}
-
 		// New KLAP protocol throws random errors when the requests are done at speed.
-		// Retrying mostly solve the issue
+		// Retrying with a new token mostly solve the issue (jaquecoso...)
 		tapoResponseNew := &tapogotypes.ResponseSpec{}
-		for retryAttempt := 0; retryAttempt < RequestRetryAttempts; retryAttempt++ {
-			tapoResponseNew, err = tapoClientNew.TurnOff()
-			if err != nil {
-				time.Sleep(time.Millisecond * 250) // Magic number 0.25s
-				continue
-			}
-			break
-		}
+		err = retry.Do(
+			func() (err error) {
+				tapoClientNew, err := tapogo.NewTapo(tapoConfig.Address,
+					tapoConfig.Auth.Username,
+					tapoConfig.Auth.Password,
+					&tapogo.TapoOptions{})
+
+				if err != nil {
+					ctx.Logger.Errorf(ClientCreationError, err)
+					return err
+				}
+
+				tapoResponseNew, err = tapoClientNew.TurnOff()
+				if err != nil {
+					ctx.Logger.Errorf(TurningOffDuringRetriesError, err)
+				}
+				return err
+			},
+			retry.Attempts(RequestRetryAttempts),
+			retry.Delay(RequestRetryDelayDuration))
 
 		if err != nil {
+			ctx.Logger.Errorf(TurningOffError, err)
 			return tapoResponse, err
 		}
 

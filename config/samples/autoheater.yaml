@@ -65,7 +65,7 @@ spec:
         # modern: (default) is used for newer firmware versions and supports 'KLAP' protocol
         client: modern
 
-        address: "192.168.1.109"
+        address: "192.168.1.100"
 
         # (Optional) username and password for auth. It's the same used to access the app (it's accessed locally, but
         # Tapo devices are configured that way when they are set up)

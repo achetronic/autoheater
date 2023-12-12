@@ -3,7 +3,7 @@ module github.com/achetronic/autoheater
 go 1.21
 
 require (
-	github.com/achetronic/tapogo v0.1.1
+	github.com/achetronic/tapogo v0.2.0
 	github.com/avast/retry-go v3.0.0+incompatible
 	github.com/caarlos0/env/v9 v9.0.0
 	github.com/richardjennings/tapo v0.0.1
