@@ -1,6 +1,7 @@
 package schedules
 
 import (
+	"reflect"
 	"sync"
 	"time"
 
@@ -9,8 +10,6 @@ import (
 	"github.com/achetronic/autoheater/internal/integrations/webhook"
 	"github.com/achetronic/autoheater/internal/price"
 	"github.com/achetronic/autoheater/internal/weather"
-
-	"github.com/avast/retry-go"
 )
 
 const (
@@ -35,12 +34,10 @@ const (
 func RunScheduler(ctx *v1alpha1.Context) {
 
 	var err error
+	var retryFunctionErr error
 
 	var isCold bool
 	var schedules []price.Schedule
-
-	retry.Attempts(3)
-	retry.Delay(5 * time.Second)
 
 	for {
 		currentTime := time.Now().In(time.Local)
@@ -48,15 +45,13 @@ func RunScheduler(ctx *v1alpha1.Context) {
 		// Disable the scheduler in (hot days for heaters) && (cold days for coolers)
 		if ctx.Config.Spec.Weather.Enabled {
 
-			err = retry.Do(func() (err error) {
+			retryFunctionErr = retry(func() error {
 				isCold, err = weather.IsColdDay(ctx)
-				if err != nil {
-					ctx.Logger.Info(WeatherNotAvailableErrorMessage)
-				}
 				return err
-			})
+			}, 3, 5*time.Second)
 
-			if err != nil {
+			if retryFunctionErr != nil {
+				ctx.Logger.Infof(WeatherNotAvailableErrorMessage)
 				goto waitNextDay
 			}
 
@@ -64,17 +59,19 @@ func RunScheduler(ctx *v1alpha1.Context) {
 			// Cold day, not enable the cooler
 			if (ctx.Config.Spec.Device.Type == "heater" && !isCold) ||
 				(ctx.Config.Spec.Device.Type == "cooler" && isCold) {
+				ctx.Logger.Infof("weather is not suitable to turn on the device. waiting until next day")
 				goto waitNextDay
 			}
 		}
 
 		// Get the sections with the best prices to satisfy the hours required by the user
-		err = retry.Do(func() (err error) {
+		retryFunctionErr = retry(func() error {
 			schedules, err = price.GetBestSchedules(ctx)
 			return err
-		})
+		}, 3, 5*time.Second)
 
-		if err != nil {
+		if retryFunctionErr != nil {
+			ctx.Logger.Infof(price.PricesNotAvailableErrorMessage)
 			goto waitNextDay
 		}
 
@@ -85,6 +82,7 @@ func RunScheduler(ctx *v1alpha1.Context) {
 	waitNextDay:
 		// Wait until next programmed hour (following day)
 		// By default, next scheduling moment is 12:00 AM
+		ctx.Logger.Infof("waiting until next day to schedule actions")
 		nextDay := currentTime.Add(24 * time.Hour)
 		nextTargetTime := time.Date(nextDay.Year(), nextDay.Month(), nextDay.Day(), 0, 1, 0, 0, time.Local)
 		duration := nextTargetTime.Sub(currentTime)
@@ -163,31 +161,42 @@ func ScheduleActions(ctx *v1alpha1.Context, schedules []price.Schedule) {
 
 // ExecuteStartAction execute an action for each defined integration on 'start' events
 func ExecuteStartAction(ctx *v1alpha1.Context) {
+	var err error
 
-	// Execute the action for Tapo Smart plug device
-	_, err := taposmartplug.TurnOnDevice(ctx)
-	if err != nil {
-		ctx.Logger.Infof(TapoStartExecutionFailedErrorMessage, err)
+	// Execute the action for Tapo Smart plug device when its config is present
+	if !reflect.ValueOf(ctx.Config.Spec.Device.Integrations.TapoSmartPlug).IsZero() {
+		_, err := taposmartplug.TurnOnDevice(ctx)
+		if err != nil {
+			ctx.Logger.Infof(TapoStartExecutionFailedErrorMessage, err)
+		}
 	}
 
-	// Execute the action for webhook device
-	_, err = webhook.SendStartDeviceEvent(ctx)
-	if err != nil {
-		ctx.Logger.Infof(WebhookStartExecutionFailedErrorMessage, err)
+	// Execute the action for webhook device when its config is present
+	if !reflect.ValueOf(ctx.Config.Spec.Device.Integrations.Webhook).IsZero() {
+		_, err = webhook.SendStartDeviceEvent(ctx)
+		if err != nil {
+			ctx.Logger.Infof(WebhookStartExecutionFailedErrorMessage, err)
+		}
 	}
 }
 
 // ExecuteStopAction execute an action for each defined integration on 'stop' events
 func ExecuteStopAction(ctx *v1alpha1.Context) {
+	var err error
 
-	_, err := taposmartplug.TurnOffDevice(ctx)
-	if err != nil {
-		ctx.Logger.Infof(TapoStopExecutionFailedErrorMessage, err)
+	// Execute the action for Tapo Smartplug device when its config is present
+	if !reflect.ValueOf(ctx.Config.Spec.Device.Integrations.TapoSmartPlug).IsZero() {
+		_, err := taposmartplug.TurnOffDevice(ctx)
+		if err != nil {
+			ctx.Logger.Infof(TapoStopExecutionFailedErrorMessage, err)
+		}
 	}
 
-	// Execute the action for webhook device
-	_, err = webhook.SendStopDeviceEvent(ctx)
-	if err != nil {
-		ctx.Logger.Infof(WebhookStopExecutionFailedErrorMessage, err)
+	// Execute the action for webhook device when its config is present
+	if !reflect.ValueOf(ctx.Config.Spec.Device.Integrations.Webhook).IsZero() {
+		_, err = webhook.SendStopDeviceEvent(ctx)
+		if err != nil {
+			ctx.Logger.Infof(WebhookStopExecutionFailedErrorMessage, err)
+		}
 	}
 }

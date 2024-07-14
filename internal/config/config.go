@@ -28,7 +28,11 @@ func ReadFile(filepath string) (config v1alpha1.ConfigSpec, err error) {
 		return config, err
 	}
 
-	config, err = Unmarshal(fileBytes)
+	// Expand environment variables present in the config
+	// This will cause expansion in the following way: field: "$FIELD" -> field: "value_of_field"
+	fileExpandedEnv := os.ExpandEnv(string(fileBytes))
+
+	config, err = Unmarshal([]byte(fileExpandedEnv))
 
 	return config, err
 }

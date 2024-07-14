@@ -2,7 +2,6 @@ package run
 
 import (
 	"fmt"
-	"github.com/caarlos0/env/v9"
 	"log"
 	_ "net/http/pprof"
 	"time"
@@ -101,16 +100,10 @@ func RunCommand(cmd *cobra.Command, args []string) {
 		ctx.Logger.Fatalf(fmt.Sprintf(ConfigNotParsedErrorMessage, err))
 	}
 
-	// Get and parse environment variables for credentials
-	err = env.Parse(&configContent)
-	if err != nil {
-		ctx.Logger.Fatalf(fmt.Sprintf(EnvNotParsedErrorMessage, err))
-	}
-
 	// Set the configuration inside the global context
 	ctx.Config = &configContent
 
 	//
 	schedules.RunScheduler(&ctx)
-	select {}
+	//select {}
 }

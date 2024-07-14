@@ -10,11 +10,12 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
-	"github.com/achetronic/autoheater/api/v1alpha1"
 	"io"
 	"net/http"
 	"sort"
 	"time"
+
+	"github.com/achetronic/autoheater/api/v1alpha1"
 )
 
 const (
@@ -30,6 +31,9 @@ const (
 
 	//
 	ActiveHoursOutOfRangeErrorMessage = "config.device.activeHours field must be a number between 1 and 24"
+
+	//
+	PricesNotAvailableErrorMessage = "impossible to get prices from ApagaLuz API"
 )
 
 // Schedule represents a time range to start and stop an external device

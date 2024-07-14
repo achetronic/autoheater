@@ -4,10 +4,11 @@ import (
 	"bytes"
 	"errors"
 	"fmt"
-	"github.com/achetronic/autoheater/api/v1alpha1"
 	"io"
 	"net/http"
 	"time"
+
+	"github.com/achetronic/autoheater/api/v1alpha1"
 )
 
 const (
@@ -46,7 +47,9 @@ func sendEvent(ctx *v1alpha1.Context, event string) (httpResponse *http.Response
 	}
 
 	// Agregar autenticación básica
-	httpRequest.SetBasicAuth(webhookConfig.Auth.Username, webhookConfig.Auth.Password)
+	if webhookConfig.Auth.Username != "" && webhookConfig.Auth.Password != "" {
+		httpRequest.SetBasicAuth(webhookConfig.Auth.Username, webhookConfig.Auth.Password)
+	}
 
 	// Add data to the request
 	payload := []byte(fmt.Sprintf(HttpEventPattern, event, ctx.Config.Metadata.Name, time.Now().In(time.Local)))
