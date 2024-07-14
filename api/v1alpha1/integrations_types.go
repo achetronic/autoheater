@@ -16,5 +16,5 @@ type WebhookSpec struct {
 	Auth struct {
 		Username string `yaml:"username"`
 		Password string `yaml:"password"`
-	} `yaml:"auth, omitempty"`
+	} `yaml:"auth,omitempty"`
 }
