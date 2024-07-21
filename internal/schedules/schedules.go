@@ -13,7 +13,14 @@ import (
 )
 
 const (
+	//
+	RetryAttempts = 3
+	RetryDelay    = 5 * time.Second
+
+	//
 	RootSchedulerStartedMessage = "task scheduler is running @ %s"
+	WaitingNextDayMessage       = "waiting until next day to schedule actions"
+	WeatherNotSuitableMessage   = "weather is not suitable to turn on the device"
 
 	StartDeviceProgrammedActionMessage = "task programmed. device will be turned on @ %s"
 	StartDeviceExecutedActionMessage   = "task completed. device has been turned on @ %s"
@@ -48,7 +55,7 @@ func RunScheduler(ctx *v1alpha1.Context) {
 			retryFunctionErr = retry(func() error {
 				isCold, err = weather.IsColdDay(ctx)
 				return err
-			}, 3, 5*time.Second)
+			}, RetryAttempts, RetryDelay)
 
 			if retryFunctionErr != nil {
 				ctx.Logger.Infof(WeatherNotAvailableErrorMessage)
@@ -59,7 +66,7 @@ func RunScheduler(ctx *v1alpha1.Context) {
 			// Cold day, not enable the cooler
 			if (ctx.Config.Spec.Device.Type == "heater" && !isCold) ||
 				(ctx.Config.Spec.Device.Type == "cooler" && isCold) {
-				ctx.Logger.Infof("weather is not suitable to turn on the device. waiting until next day")
+				ctx.Logger.Infof(WeatherNotSuitableMessage)
 				goto waitNextDay
 			}
 		}
@@ -68,7 +75,7 @@ func RunScheduler(ctx *v1alpha1.Context) {
 		retryFunctionErr = retry(func() error {
 			schedules, err = price.GetBestSchedules(ctx)
 			return err
-		}, 3, 5*time.Second)
+		}, RetryAttempts, RetryDelay)
 
 		if retryFunctionErr != nil {
 			ctx.Logger.Infof(price.PricesNotAvailableErrorMessage)
@@ -82,7 +89,7 @@ func RunScheduler(ctx *v1alpha1.Context) {
 	waitNextDay:
 		// Wait until next programmed hour (following day)
 		// By default, next scheduling moment is 12:00 AM
-		ctx.Logger.Infof("waiting until next day to schedule actions")
+		ctx.Logger.Infof(WaitingNextDayMessage)
 		nextDay := currentTime.Add(24 * time.Hour)
 		nextTargetTime := time.Date(nextDay.Year(), nextDay.Month(), nextDay.Day(), 0, 1, 0, 0, time.Local)
 		duration := nextTargetTime.Sub(currentTime)
