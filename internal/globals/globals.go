@@ -1,10 +1,10 @@
-package schedules
+package globals
 
 import (
 	"time"
 )
 
-func retry(function func() error, attempts int, timeBetweenAttempts time.Duration) (err error) {
+func Retry(function func() error, attempts int, timeBetweenAttempts time.Duration) (err error) {
 
 	var functionError error
 

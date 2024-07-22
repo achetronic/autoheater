@@ -10,6 +10,7 @@ import (
 	"github.com/achetronic/autoheater/internal/integrations/webhook"
 	"github.com/achetronic/autoheater/internal/price"
 	"github.com/achetronic/autoheater/internal/weather"
+	"github.com/achetronic/autoheater/internal/globals"
 )
 
 const (
@@ -52,7 +53,7 @@ func RunScheduler(ctx *v1alpha1.Context) {
 		// Disable the scheduler in (hot days for heaters) && (cold days for coolers)
 		if ctx.Config.Spec.Weather.Enabled {
 
-			retryFunctionErr = retry(func() error {
+			retryFunctionErr = globals.Retry(func() error {
 				isCold, err = weather.IsColdDay(ctx)
 				return err
 			}, RetryAttempts, RetryDelay)
@@ -72,7 +73,7 @@ func RunScheduler(ctx *v1alpha1.Context) {
 		}
 
 		// Get the sections with the best prices to satisfy the hours required by the user
-		retryFunctionErr = retry(func() error {
+		retryFunctionErr = globals.Retry(func() error {
 			schedules, err = price.GetBestSchedules(ctx)
 			return err
 		}, RetryAttempts, RetryDelay)

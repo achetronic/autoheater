@@ -3,12 +3,13 @@ package taposmartplug
 import (
 	"encoding/json"
 	"errors"
+	"time"
+
 	"github.com/achetronic/autoheater/api/v1alpha1"
+	"github.com/achetronic/autoheater/internal/globals"
 	tapogotypes "github.com/achetronic/tapogo/api/types"
 	"github.com/achetronic/tapogo/pkg/tapogo"
-	"github.com/avast/retry-go"
 	"github.com/richardjennings/tapo/pkg/tapo"
-	"time"
 )
 
 const (
@@ -69,7 +70,9 @@ func TurnOnDevice(ctx *v1alpha1.Context) (tapoResponse map[string]interface{}, e
 		// New KLAP protocol throws random errors when the requests are done at speed.
 		// Retrying with a new token mostly solve the issue (jaquecoso...)
 		tapoResponseNew := &tapogotypes.ResponseSpec{}
-		err = retry.Do(
+
+		//schedules.R
+		err = globals.Retry(
 			func() (err error) {
 				tapoClientNew, err := tapogo.NewTapo(tapoConfig.Address,
 					tapoConfig.Auth.Username,
@@ -86,8 +89,8 @@ func TurnOnDevice(ctx *v1alpha1.Context) (tapoResponse map[string]interface{}, e
 				}
 				return err
 			},
-			retry.Attempts(RequestRetryAttempts),
-			retry.Delay(RequestRetryDelayDuration))
+			RequestRetryAttempts,
+			RequestRetryDelayDuration)
 
 		if err != nil {
 			ctx.Logger.Errorf(TurningOnError, err)
@@ -137,7 +140,7 @@ func TurnOffDevice(ctx *v1alpha1.Context) (tapoResponse map[string]interface{}, 
 		// New KLAP protocol throws random errors when the requests are done at speed.
 		// Retrying with a new token mostly solve the issue (jaquecoso...)
 		tapoResponseNew := &tapogotypes.ResponseSpec{}
-		err = retry.Do(
+		err = globals.Retry(
 			func() (err error) {
 				tapoClientNew, err := tapogo.NewTapo(tapoConfig.Address,
 					tapoConfig.Auth.Username,
@@ -155,8 +158,8 @@ func TurnOffDevice(ctx *v1alpha1.Context) (tapoResponse map[string]interface{}, 
 				}
 				return err
 			},
-			retry.Attempts(RequestRetryAttempts),
-			retry.Delay(RequestRetryDelayDuration))
+			RequestRetryAttempts,
+			RequestRetryDelayDuration)
 
 		if err != nil {
 			ctx.Logger.Errorf(TurningOffError, err)
